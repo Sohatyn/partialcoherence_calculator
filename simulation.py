@@ -1,9 +1,9 @@
 import numpy as np
 import zernike
 
-def generate_mask(Nx, Ny, pixel_size, line_width_nm, orientation='V'):
+def generate_mask(Nx, Ny, pixel_size, line_width_nm, num_lines=5, orientation='V'):
     """
-    Generate a 2D transmission mask of 5 dark lines and spaces.
+    Generate a 2D transmission mask of alternating dark lines and bright spaces.
     Dark line = 0.0, Bright space = 1.0 (transparent background).
     """
     mask = np.ones((Ny, Nx), dtype=float)
@@ -15,10 +15,12 @@ def generate_mask(Nx, Ny, pixel_size, line_width_nm, orientation='V'):
     if lw_p == 0:
         lw_p = 1
         
-    # The pattern consists of 13 lines (index -6 to 6)
+    start_idx = -(num_lines // 2)
+    end_idx = start_idx + num_lines
+    
     # Pitch = 2 * lw_p
     if orientation == 'V':
-        for i in range(-6, 7):
+        for i in range(start_idx, end_idx):
             cx = center_x + i * 2 * lw_p
             start = cx - lw_p // 2
             end = start + lw_p
@@ -27,7 +29,7 @@ def generate_mask(Nx, Ny, pixel_size, line_width_nm, orientation='V'):
             end = min(Nx, end)
             mask[:, start:end] = 0.0
     else:  # Horizontal
-        for i in range(-6, 7):
+        for i in range(start_idx, end_idx):
             cy = center_y + i * 2 * lw_p
             start = cy - lw_p // 2
             end = start + lw_p
@@ -178,9 +180,8 @@ def sweep_focus(mask, NA, sigma, lambda_nm, focus_list, zernike_coeffs, pixel_si
         # Note: actually we need to pass line_width_nm. Let's fix loop to accept it as param.
     return contrasts
 
-# Real version of sweep_focus with correct signature
-def run_through_focus(line_width_nm, NA, sigma, lambda_nm, focus_list, zernike_coeffs, orientation='V', Nx=512, Ny=512, pixel_size_nm=2.0, num_source=100):
-    mask = generate_mask(Nx, Ny, pixel_size_nm, line_width_nm, orientation)
+def run_through_focus(line_width_nm, NA, sigma, lambda_nm, focus_list, zernike_coeffs, num_lines=5, orientation='V', Nx=512, Ny=512, pixel_size_nm=2.0, num_source=100):
+    mask = generate_mask(Nx, Ny, pixel_size_nm, line_width_nm, num_lines, orientation)
     source_points = get_source_points(NA, sigma, lambda_nm, num_points=num_source)
     
     contrasts = []
@@ -207,7 +208,7 @@ if __name__ == "__main__":
     lw = 40.0
     
     print("Generating Mask")
-    m = generate_mask(Nx, Ny, pixel_size, lw, 'V')
+    m = generate_mask(Nx, Ny, pixel_size, lw, 5, 'V')
     print("Simulating Image")
     img = simulate_image(m, NA=1.35, sigma=0.8, lambda_nm=193.0, focus_nm=0.0, zernike_coeffs=z_coeffs, pixel_size_nm=pixel_size)
     c = calculate_contrast(img, lw, pixel_size, 'V')
@@ -215,6 +216,6 @@ if __name__ == "__main__":
     
     foc_list = np.linspace(-100, 100, 5)
     print("Running Through-Focus")
-    clist, plist = run_through_focus(lw, 1.35, 0.8, 193.0, foc_list, z_coeffs, 'V', Nx, Ny, pixel_size)
+    clist, plist = run_through_focus(lw, 1.35, 0.8, 193.0, foc_list, z_coeffs, 5, 'V', Nx, Ny, pixel_size)
     for f, c in zip(foc_list, clist):
         print(f"Focus {f}nm: Contrast {c:.4f}")

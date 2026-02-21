@@ -34,7 +34,9 @@ class PartialCoherenceApp(tk.Tk):
         self.current_1d = None
         self.current_foc_list = None
         self.current_c_list = None
+        self.current_p_list = None
         self.current_contrast = 0.0
+        self.current_extent = None
         
         self._build_ui()
         
@@ -76,8 +78,13 @@ class PartialCoherenceApp(tk.Tk):
         ttk.Entry(span_frame, textvariable=self.var_foc_step, width=5).pack(side=tk.LEFT, padx=(2, 0))
 
         ttk.Label(param_frame, text="L&S Width (nm):").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
-        self.var_w = tk.StringVar(value="1800.0")
-        ttk.Entry(param_frame, textvariable=self.var_w, width=10).grid(row=5, column=1, padx=5, pady=2)
+        lw_frame = ttk.Frame(param_frame)
+        lw_frame.grid(row=5, column=1, sticky=tk.W, padx=5, pady=2)
+        self.var_w = tk.StringVar(value="1500.0")
+        ttk.Entry(lw_frame, textvariable=self.var_w, width=7).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(lw_frame, text="Lines:").pack(side=tk.LEFT)
+        self.var_lines = tk.StringVar(value="5")
+        ttk.Entry(lw_frame, textvariable=self.var_lines, width=4).pack(side=tk.LEFT, padx=(2, 0))
         
         ttk.Label(param_frame, text="Orientation:").grid(row=6, column=0, sticky=tk.W, padx=5, pady=2)
         ori_frame = ttk.Frame(param_frame)
@@ -85,6 +92,14 @@ class PartialCoherenceApp(tk.Tk):
         self.var_ori = tk.StringVar(value="V")
         ttk.Radiobutton(ori_frame, text="Vertical", variable=self.var_ori, value="V").pack(side=tk.LEFT)
         ttk.Radiobutton(ori_frame, text="Horizontal", variable=self.var_ori, value="H").pack(side=tk.LEFT)
+        ttk.Radiobutton(ori_frame, text="Both", variable=self.var_ori, value="Both").pack(side=tk.LEFT)
+        
+        ttk.Label(param_frame, text="Precision:").grid(row=7, column=0, sticky=tk.W, padx=5, pady=2)
+        prec_frame = ttk.Frame(param_frame)
+        prec_frame.grid(row=7, column=1, sticky=tk.W)
+        self.var_prec = tk.StringVar(value="Fast")
+        ttk.Radiobutton(prec_frame, text="Fast (Rough)", variable=self.var_prec, value="Fast").pack(side=tk.LEFT)
+        ttk.Radiobutton(prec_frame, text="High (Slow)", variable=self.var_prec, value="High").pack(side=tk.LEFT)
         
         # Zernike Parameters (Scrollable)
         z_frame_container = ttk.LabelFrame(left_frame, text="36 Fringe Zernike Coefficients (waves)")
@@ -119,7 +134,8 @@ class PartialCoherenceApp(tk.Tk):
         # Action Buttons
         btn_frame = ttk.Frame(left_frame)
         btn_frame.pack(fill=tk.X, padx=5, pady=10)
-        ttk.Button(btn_frame, text="Run Simulation", command=self.run_simulation).pack(fill=tk.X, pady=2)
+        ttk.Button(btn_frame, text="Run Full Simulation", command=lambda: self.run_simulation(full=True)).pack(fill=tk.X, pady=2)
+        ttk.Button(btn_frame, text="Run 2D & Profile Only", command=lambda: self.run_simulation(full=False)).pack(fill=tk.X, pady=2)
         ttk.Button(btn_frame, text="Export to CSV", command=self.export_csv).pack(fill=tk.X, pady=2)
         
         self.status_var = tk.StringVar(value="Ready.")
@@ -132,11 +148,16 @@ class PartialCoherenceApp(tk.Tk):
         main_pane.add(right_frame, weight=3)
         
         # Matplotlib Figures
-        self.fig = Figure(figsize=(7, 10), dpi=100)
-        self.ax1 = self.fig.add_subplot(311)  # 1D Profile
-        self.ax2 = self.fig.add_subplot(312)  # Contrast Curve
-        self.ax3 = self.fig.add_subplot(313)  # Heatmap
-        self.fig.tight_layout(pad=4.0)
+        self.fig = Figure(figsize=(8.5, 11), dpi=100)
+        
+        # Give more width/height balance to the top plots to avoid squishing
+        gs = self.fig.add_gridspec(3, 2, height_ratios=[1.2, 1, 1], width_ratios=[1, 1], hspace=0.35, wspace=0.25)
+        self.ax1 = self.fig.add_subplot(gs[0, 0])  # 1D Profile
+        self.ax4 = self.fig.add_subplot(gs[0, 1])  # 2D Profile
+        self.ax2 = self.fig.add_subplot(gs[1, :])  # Contrast Curve
+        self.ax3 = self.fig.add_subplot(gs[2, :])  # Heatmap
+        
+        self.fig.tight_layout(pad=3.0)
         
         # Colorbar reference for heatmap
         self.cbar = None
@@ -154,123 +175,208 @@ class PartialCoherenceApp(tk.Tk):
             foc_span = float(self.var_foc_span.get())
             foc_step = float(self.var_foc_step.get())
             w = float(self.var_w.get())
+            num_lines = int(self.var_lines.get())
             ori = self.var_ori.get()
+            prec = self.var_prec.get()
             z_coeffs = np.array([float(v.get()) for v in self.zernike_entries])
-            return wav, na, sig, foc_um, foc_span, foc_step, w, ori, z_coeffs
+            return wav, na, sig, foc_um, foc_span, foc_step, w, num_lines, ori, prec, z_coeffs
         except ValueError:
             messagebox.showerror("Input Error", "Please ensure all inputs are valid numbers.")
             return None
 
-    def run_simulation(self):
+    def run_simulation(self, full=True):
         params = self._get_inputs()
         if not params: return
-        wav, na, sig, foc_um, foc_span, foc_step, w, ori, z_coeffs = params
+        wav, na, sig, foc_um, foc_span, foc_step, w, num_lines, ori, prec, z_coeffs = params
         
-        self.status_var.set("Running simulation... please wait.")
+        mode_text = "full simulation" if full else "2D & Profile calculation"
+        self.status_var.set(f"Running {mode_text}... please wait.")
         self.update()
         
+        # Set precision points
+        if prec == "Fast":
+            num_points_single = 120
+            num_points_sweep = 50
+        else:
+            num_points_single = 250
+            num_points_sweep = 250
+            
         try:
             # Resolution logic
-            # Ensure the image array covers at least 10 times the line width
-            target_field_size = 10.0 * w
+            # Scale target_field_size proportionally with num_lines so it always looks like 5 lines
+            target_field_size = 4.0 * num_lines * w
             Nx, Ny = 512, 512
             pixel_size = target_field_size / Nx
             
-            # --- 1. Single Focus Simulation ---
             foc_nm = foc_um * 1000.0
-            mask = simulation.generate_mask(Nx, Ny, pixel_size, w, ori)
-            src = simulation.get_source_points(na, sig, wav, num_points=120)
+            src_single = simulation.get_source_points(na, sig, wav, num_points=num_points_single)
             
-            img = simulation.simulate_image(mask, na, sig, wav, foc_nm, z_coeffs, pixel_size, source_points=src)
-            c = simulation.calculate_contrast(img, w, pixel_size, ori)
-            
-            self.current_img = img
-            self.current_contrast = c
-            self.contrast_lbl.set(f"Center Contrast: {c:.4f}")
-            
-            # Extract 1D Center Profile
-            cx, cy = Nx//2, Ny//2
-            if ori == 'V':
-                profile = img[cy, :]
-                x_axis = (np.arange(Nx) - cx) * pixel_size
+            # Helper to run single orientation
+            def run_single_orientation(o):
+                mask = simulation.generate_mask(Nx, Ny, pixel_size, w, num_lines, o)
+                img = simulation.simulate_image(mask, na, sig, wav, foc_nm, z_coeffs, pixel_size, source_points=src_single)
+                c = simulation.calculate_contrast(img, w, pixel_size, o)
+                
+                cx, cy = Nx//2, Ny//2
+                if o == 'V':
+                    profile = img[cy, :]
+                    x_axis = (np.arange(Nx) - cx) * pixel_size
+                else:
+                    profile = img[:, cx]
+                    x_axis = (np.arange(Ny) - cy) * pixel_size
+                
+                return img, c, x_axis, profile
+                
+            # --- 1. Single Focus Simulation ---
+            if ori == "Both":
+                # Define primary view based on V
+                img_v, c_v, x_axis_v, profile_v = run_single_orientation("V")
+                img_h, c_h, x_axis_h, profile_h = run_single_orientation("H")
+                
+                self.current_img = img_v # Keep V for the 2D plot
+                self.current_contrast = {"V": c_v, "H": c_h}
+                self.contrast_lbl.set(f"Center Contrast: V={c_v:.4f}, H={c_h:.4f}")
+                self.current_1d = (x_axis_v, profile_v) # Keep V as primary 1D
             else:
-                profile = img[:, cx]
-                x_axis = (np.arange(Ny) - cy) * pixel_size
-            self.current_1d = (x_axis, profile)
+                img, c, x_axis, profile = run_single_orientation(ori)
+                self.current_img = img
+                self.current_contrast = c
+                self.contrast_lbl.set(f"Center Contrast: {c:.4f}")
+                self.current_1d = (x_axis, profile)
             
+            self.current_extent = [-Nx/2 * pixel_size, Nx/2 * pixel_size, -Ny/2 * pixel_size, Ny/2 * pixel_size]
+            
+            foc_um_list, c_list, p_list = [], [], []
+            c_list_h, p_list_h = [], []
+
             # --- 2. Through-Focus Sweep ---
-            span_um = foc_span
-            step_um = foc_step
-            if step_um <= 0:
-                raise ValueError("Focus step must be > 0.")
-            num_steps = int(round(2 * span_um / step_um)) + 1
-            foc_um_list = np.linspace(foc_um - span_um, foc_um - span_um + (num_steps - 1) * step_um, num_steps)
-            foc_nm_list = foc_um_list * 1000.0
-            
-            c_list, p_list = simulation.run_through_focus(
-                w, na, sig, wav, foc_nm_list, z_coeffs, ori, Nx, Ny, pixel_size, num_source=50
-            ) # fewer points to save time
-            
-            self.current_foc_list = foc_um_list
-            self.current_c_list = c_list
+            if full:
+                span_um = foc_span
+                step_um = foc_step
+                if step_um <= 0:
+                    raise ValueError("Focus step must be > 0.")
+                num_steps = int(round(2 * span_um / step_um)) + 1
+                foc_um_list = np.linspace(foc_um - span_um, foc_um - span_um + (num_steps - 1) * step_um, num_steps)
+                foc_nm_list = foc_um_list * 1000.0
+                
+                if ori == "Both":
+                    c_list_v, p_list_v = simulation.run_through_focus(
+                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "V", Nx, Ny, pixel_size, num_source=num_points_sweep
+                    )
+                    c_list_h_res, p_list_h_res = simulation.run_through_focus(
+                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "H", Nx, Ny, pixel_size, num_source=num_points_sweep
+                    )
+                    c_list = c_list_v
+                    p_list = p_list_v
+                    c_list_h = c_list_h_res
+                    p_list_h = p_list_h_res
+                else:
+                    c_list, p_list = simulation.run_through_focus(
+                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, ori, Nx, Ny, pixel_size, num_source=num_points_sweep
+                    )
+                
+                self.current_foc_list = foc_um_list
+                self.current_c_list = c_list
+                self.current_p_list = p_list
             
             # Plot
-            self._update_plots(x_axis, profile, foc_um, c, foc_um_list, c_list, p_list, w)
+            self._update_plots(self.current_1d[0], self.current_1d[1], foc_um, self.current_contrast, foc_um_list, c_list, p_list, w, num_lines, ori, full, c_list_h, p_list_h)
             self.status_var.set("Simulation completed.")
             
         except Exception as e:
             messagebox.showerror("Simulation Error", str(e))
             self.status_var.set("Error occurred.")
             
-    def _update_plots(self, x, prof, f_user, c_user, f_list, c_list, p_list, w):
-        # 1. 1D Profile
+    def _update_plots(self, x, prof, f_user, c_user, f_list, c_list, p_list, w, num_lines, ori, full_update=True, c_list_h=None, p_list_h=None):
+        # Convert base units (nm) to (um) for plots 1 and 4
+        x_um = x / 1000.0
+        w_um = w / 1000.0
+        extent_um = [e / 1000.0 for e in self.current_extent]
+        limit_um = 1.8 * num_lines * w_um
+        
+        # 1. 1D Profile (Only shows Primary when Both, which is V)
         self.ax1.clear()
-        self.ax1.plot(x, prof, 'b-', label='Aerial Image')
-        self.ax1.set_title(f"Image Profile at Focus = {f_user:.3f} um")
-        self.ax1.set_xlabel("Position (nm)")
-        self.ax1.set_ylabel("Intensity (a.u.)")
+        self.ax1.plot(x_um, prof, 'b-', label='Aerial Image (V)' if ori == 'Both' else 'Aerial Image')
+        self.ax1.set_title(f"1D Profile (Focus = {f_user:.3f} um)", fontsize=11)
+        self.ax1.set_xlabel("Position (um)", fontsize=10)
+        self.ax1.set_ylabel("Intensity (a.u.)", fontsize=10)
         self.ax1.grid(True)
-        self.ax1.set_xlim([-4.5 * w, 4.5 * w])
-        self.ax1.legend()
+        self.ax1.set_xlim([-limit_um, limit_um])
+        self.ax1.legend(fontsize=9)
+        self.ax1.tick_params(axis='both', which='major', labelsize=9)
         
-        # 2. Contrast Curve
-        self.ax2.clear()
-        self.ax2.plot(f_list, c_list, 'k-o', label='Contrast Curve')
-        self.ax2.plot(f_user, c_user, 'r*', markersize=12, label='Current Focus')
-        self.ax2.set_title("Through-Focus Contrast")
-        self.ax2.set_xlabel("Focus (um)")
-        self.ax2.set_ylabel("Contrast")
-        self.ax2.grid(True)
-        self.ax2.legend()
+        # 0. 2D Profile (Only shows Primary when Both, which is V)
+        self.ax4.clear()
+        im = self.ax4.imshow(self.current_img, extent=extent_um, origin='lower', cmap='viridis')
+        self.ax4.set_title(f"2D Aerial Image (V)" if ori == 'Both' else "2D Aerial Image", fontsize=11)
+        self.ax4.set_xlabel("X (um)", fontsize=10)
+        self.ax4.set_ylabel("Y (um)", fontsize=10)
+        self.ax4.set_xlim([-limit_um, limit_um])
+        self.ax4.set_ylim([-limit_um, limit_um])
+        self.ax4.set_aspect('equal')
+        self.ax4.tick_params(axis='both', which='major', labelsize=9)
         
-        # 3. Heatmap
-        self.ax3.clear()
-        # p_list is shape (num_focus, num_x)
-        # To plot x vs focus, we use imshow or pcolormesh
-        # X axis: physical position
-        # Y axis: focus
-        
-        # Create custom colormap: Green (darkest) to Red (brightest)
-        # Or standard RdYlGn reversed so green is low and red is high
-        cmap = matplotlib.colormaps['RdYlGn_r']
-        
-        # For pcolormesh, we need coordinate edges
-        X_mesh, Y_mesh = np.meshgrid(x, f_list)
-        
-        pcm = self.ax3.pcolormesh(X_mesh, Y_mesh, p_list, cmap=cmap, shading='auto')
-        self.ax3.set_title("Through-Focus Intensity Heatmap")
-        self.ax3.set_xlabel("Position (nm)")
-        self.ax3.set_ylabel("Focus (um)")
-        self.ax3.set_xlim([-4.5 * w, 4.5 * w])
-        
-        if self.cbar_ax is not None:
-            self.cbar_ax.remove()
-        
-        # Add custom axis for colorbar to prevent layout issues on refresh
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        divider = make_axes_locatable(self.ax3)
-        self.cbar_ax = divider.append_axes("right", size="5%", pad=0.1)
-        self.cbar = self.fig.colorbar(pcm, cax=self.cbar_ax, orientation='vertical', label='Intensity')
+        if full_update:
+            # 2. Contrast Curve
+            self.ax2.clear()
+            if ori == 'Both':
+                self.ax2.plot(f_list, c_list, 'b-o', label='V Contrast')
+                self.ax2.plot(f_user, c_user["V"], 'b*', markersize=12, label='V Current Focus')
+                self.ax2.plot(f_list, c_list_h, 'r-s', label='H Contrast')
+                self.ax2.plot(f_user, c_user["H"], 'r*', markersize=12, label='H Current Focus')
+            else:
+                self.ax2.plot(f_list, c_list, 'k-o', label='Contrast Curve')
+                self.ax2.plot(f_user, c_user, 'r*', markersize=12, label='Current Focus')
+            
+            self.ax2.set_title("Through-Focus Contrast", fontsize=12)
+            self.ax2.set_xlabel("Focus (um)", fontsize=11)
+            self.ax2.set_ylabel("Contrast", fontsize=11)
+            self.ax2.grid(True)
+            self.ax2.legend(fontsize=10)
+            self.ax2.tick_params(axis='both', which='major', labelsize=10)
+            
+            # 3. Heatmap
+            # Remove previous colorbar if exists
+            if self.cbar_ax is not None:
+                self.cbar_ax.remove()
+                self.cbar_ax = None
+                
+            self.ax3.clear()
+            # If standard heatmap (V or H only)
+            cmap = matplotlib.colormaps['RdYlGn_r']
+            X_mesh, Y_mesh = np.meshgrid(x_um, f_list)
+            
+            if ori == "Both":
+                # Splitting ax3 into two using gridspec isn't easy here, so let's plot side-by-side using ax3's axes space
+                # We can draw two pcolormeshes on the same axes if we shift the X_mesh.
+                # Since Position ranges from -limit to +limit, we can shift them
+                # Let's shift V to left side [-limit * 2, 0] and H to right side [0, limit * 2] roughly
+                gap = limit_um * 0.2
+                shift_v = limit_um + gap
+                shift_h = limit_um + gap
+                
+                # Plot V shifted left
+                pcm = self.ax3.pcolormesh(X_mesh - shift_v, Y_mesh, p_list, cmap=cmap, shading='auto')
+                # Plot H shifted right
+                self.ax3.pcolormesh(X_mesh + shift_h, Y_mesh, p_list_h, cmap=cmap, shading='auto')
+                
+                self.ax3.set_title("Through-Focus Intensity Heatmap (V <<   ||   >> H)", fontsize=12)
+                self.ax3.set_xlabel("Position (shifted)", fontsize=11)
+                self.ax3.set_ylabel("Focus (um)", fontsize=11)
+                self.ax3.set_xlim([-(limit_um + gap * 2 + limit_um), (limit_um + gap * 2 + limit_um)])
+            else:
+                pcm = self.ax3.pcolormesh(X_mesh, Y_mesh, p_list, cmap=cmap, shading='auto')
+                self.ax3.set_title("Through-Focus Intensity Heatmap", fontsize=12)
+                self.ax3.set_xlabel("Position (um)", fontsize=11)
+                self.ax3.set_ylabel("Focus (um)", fontsize=11)
+                self.ax3.set_xlim([-limit_um, limit_um])
+                
+            self.ax3.tick_params(axis='both', which='major', labelsize=10)
+            
+            from mpl_toolkits.axes_grid1 import make_axes_locatable
+            divider = make_axes_locatable(self.ax3)
+            self.cbar_ax = divider.append_axes("right", size="5%", pad=0.1)
+            self.cbar = self.fig.colorbar(pcm, cax=self.cbar_ax, orientation='vertical', label='Intensity')
         
         self.fig.tight_layout(pad=3.0)
         self.canvas_plot.draw()
@@ -280,33 +386,63 @@ class PartialCoherenceApp(tk.Tk):
             messagebox.showwarning("No Data", "Please run a simulation first!")
             return
             
-        filepath = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")],
-            title="Export Simulation Data"
-        )
-        if not filepath:
-            return
+        dlg = tk.Toplevel(self)
+        dlg.title("Select Data to Export")
+        dlg.geometry("300x200")
+        
+        var_1d = tk.BooleanVar(value=True)
+        var_c = tk.BooleanVar(value=True)
+        var_h = tk.BooleanVar(value=True)
+        
+        ttk.Checkbutton(dlg, text="1D Image Profile", variable=var_1d).pack(anchor=tk.W, padx=20, pady=5)
+        ttk.Checkbutton(dlg, text="Through-Focus Contrast", variable=var_c).pack(anchor=tk.W, padx=20, pady=5)
+        ttk.Checkbutton(dlg, text="Through-Focus Heatmap", variable=var_h).pack(anchor=tk.W, padx=20, pady=5)
+        
+        def on_export():
+            dlg.destroy()
+            if not (var_1d.get() or var_c.get() or var_h.get()):
+                return
             
-        try:
-            with open(filepath, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["--- 1D Image Profile ---"])
-                writer.writerow(["Position (nm)", "Intensity (a.u.)"])
-                x, prof = self.current_1d
-                for xx, pp in zip(x, prof):
-                    writer.writerow([xx, pp])
+            filepath = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")],
+                title="Export Simulation Data"
+            )
+            if not filepath:
+                return
+                
+            try:
+                with open(filepath, 'w', newline='') as f:
+                    writer = csv.writer(f)
+                    x_axis, prof = self.current_1d
                     
-                writer.writerow([])
-                writer.writerow(["--- Through-Focus Contrast ---"])
-                writer.writerow(["Focus (um)", "Contrast"])
-                for ff, cc in zip(self.current_foc_list, self.current_c_list):
-                    writer.writerow([ff, cc])
-                    
-            self.status_var.set(f"Successfully exported data to CSV.")
-            messagebox.showinfo("Export Successful", f"Data saved to {filepath}")
-        except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to save CSV:\n{str(e)}")
+                    if var_1d.get():
+                        writer.writerow(["--- 1D Image Profile ---"])
+                        writer.writerow(["Position (nm)", "Intensity (a.u.)"])
+                        for xx, pp in zip(x_axis, prof):
+                            writer.writerow([xx, pp])
+                        writer.writerow([])
+                        
+                    if var_c.get():
+                        writer.writerow(["--- Through-Focus Contrast ---"])
+                        writer.writerow(["Focus (um)", "Contrast"])
+                        for ff, cc in zip(self.current_foc_list, self.current_c_list):
+                            writer.writerow([ff, cc])
+                        writer.writerow([])
+                        
+                    if var_h.get():
+                        writer.writerow(["--- Through-Focus Heatmap ---"])
+                        writer.writerow(["Focus (um) \\ Position (nm)"] + list(x_axis))
+                        for i, ff in enumerate(self.current_foc_list):
+                            writer.writerow([ff] + list(self.current_p_list[i]))
+                        writer.writerow([])
+                        
+                self.status_var.set(f"Successfully exported data to CSV.")
+                messagebox.showinfo("Export Successful", f"Data saved to {filepath}")
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to save CSV:\n{str(e)}")
+
+        ttk.Button(dlg, text="Export", command=on_export).pack(pady=20)
 
 if __name__ == "__main__":
     app = PartialCoherenceApp()
