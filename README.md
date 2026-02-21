@@ -74,7 +74,7 @@ python main.py
 ### Zernike Coefficients
 Expand the bottom left section to input values (in waves) for up to 36 Fringe Zernike aberrations to see their impact on the aerial image and contrast. The simulator utilizes the standard 36 Fringe Zernike polynomials $Z_j(\rho, \theta)$, where $\rho$ is the normalized pupil radius and $\theta$ is the azimuthal angle.
 
-Here are the details for the first 16 primary aberrations (the full 36 are supported in the app following the exact same Fringe definition):
+Here are the details for the all 36 primary aberrations:
 
 | Fringe Index ($j$) | Radial $n$, Azimuthal $m$ | Aberration Name | Polynomial $Z_j(\rho, \theta)$ |
 |:---:|:---:|:---|:---|
@@ -94,6 +94,26 @@ Here are the details for the first 16 primary aberrations (the full 36 are suppo
 | 14 | 5, 1 | Secondary Coma X | $(10\rho^5 - 12\rho^3 + 3\rho) \cos(\theta)$ |
 | 15 | 5, -1 | Secondary Coma Y | $(10\rho^5 - 12\rho^3 + 3\rho) \sin(\theta)$ |
 | 16 | 6, 0 | Secondary Spherical | $20\rho^6 - 30\rho^4 + 12\rho^2 - 1$ |
+| 17 | 4, 4 | Primary Tetrafoil X | $\rho^4 \cos(4\theta)$ |
+| 18 | 4, -4 | Primary Tetrafoil Y | $\rho^4 \sin(4\theta)$ |
+| 19 | 5, 3 | Secondary Trefoil X | $(5\rho^5 - 4\rho^3) \cos(3\theta)$ |
+| 20 | 5, -3 | Secondary Trefoil Y | $(5\rho^5 - 4\rho^3) \sin(3\theta)$ |
+| 21 | 6, 2 | Tertiary Astigmatism X | $(15\rho^6 - 20\rho^4 + 6\rho^2) \cos(2\theta)$ |
+| 22 | 6, -2 | Tertiary Astigmatism Y | $(15\rho^6 - 20\rho^4 + 6\rho^2) \sin(2\theta)$ |
+| 23 | 7, 1 | Tertiary Coma X | $(35\rho^7 - 60\rho^5 + 30\rho^3 - 4\rho) \cos(\theta)$ |
+| 24 | 7, -1 | Tertiary Coma Y | $(35\rho^7 - 60\rho^5 + 30\rho^3 - 4\rho) \sin(\theta)$ |
+| 25 | 8, 0 | Tertiary Spherical | $70\rho^8 - 140\rho^6 + 90\rho^4 - 20\rho^2 + 1$ |
+| 26 | 5, 5 | Primary Pentafoil X | $\rho^5 \cos(5\theta)$ |
+| 27 | 5, -5 | Primary Pentafoil Y | $\rho^5 \sin(5\theta)$ |
+| 28 | 6, 4 | Secondary Tetrafoil X | $(6\rho^6 - 5\rho^4) \cos(4\theta)$ |
+| 29 | 6, -4 | Secondary Tetrafoil Y | $(6\rho^6 - 5\rho^4) \sin(4\theta)$ |
+| 30 | 7, 3 | Tertiary Trefoil X | $(21\rho^7 - 30\rho^5 + 10\rho^3) \cos(3\theta)$ |
+| 31 | 7, -3 | Tertiary Trefoil Y | $(21\rho^7 - 30\rho^5 + 10\rho^3) \sin(3\theta)$ |
+| 32 | 8, 2 | Quaternary Astigmatism X | $(56\rho^8 - 105\rho^6 + 60\rho^4 - 10\rho^2) \cos(2\theta)$ |
+| 33 | 8, -2 | Quaternary Astigmatism Y | $(56\rho^8 - 105\rho^6 + 60\rho^4 - 10\rho^2) \sin(2\theta)$ |
+| 34 | 9, 1 | Quaternary Coma X | $(126\rho^9 - 280\rho^7 + 210\rho^5 - 60\rho^3 + 5\rho) \cos(\theta)$ |
+| 35 | 9, -1 | Quaternary Coma Y | $(126\rho^9 - 280\rho^7 + 210\rho^5 - 60\rho^3 + 5\rho) \sin(\theta)$ |
+| 36 | 10, 0 | Quaternary Spherical | $252\rho^{10} - 630\rho^8 + 560\rho^6 - 210\rho^4 + 30\rho^2 - 1$ |
 
 ### Simulation Modes
 - **Run Full Simulation**: Computes the through-focus calculations, providing heatmaps and contrast curves.
