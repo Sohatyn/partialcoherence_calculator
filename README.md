@@ -72,7 +72,28 @@ python main.py
 6. **Precision**: Choose between `Fast (Rough)` for quick explorations or `High (Slow)` for detailed, high-resolution rendering.
 
 ### Zernike Coefficients
-Expand the bottom left section to input values (in waves) for up to 36 Fringe Zernike aberrations to see their impact on the aerial image and contrast.
+Expand the bottom left section to input values (in waves) for up to 36 Fringe Zernike aberrations to see their impact on the aerial image and contrast. The simulator utilizes the standard 36 Fringe Zernike polynomials $Z_j(\rho, \theta)$, where $\rho$ is the normalized pupil radius and $\theta$ is the azimuthal angle.
+
+Here are the details for the first 16 primary aberrations (the full 36 are supported in the app following the exact same Fringe definition):
+
+| Fringe Index ($j$) | Radial $n$, Azimuthal $m$ | Aberration Name | Polynomial $Z_j(\rho, \theta)$ |
+|:---:|:---:|:---|:---|
+| 1 | 0, 0 | Piston | $1$ |
+| 2 | 1, 1 | X Tilt | $\rho \cos(\theta)$ |
+| 3 | 1, -1 | Y Tilt | $\rho \sin(\theta)$ |
+| 4 | 2, 0 | Defocus | $2\rho^2 - 1$ |
+| 5 | 2, 2 | Primary Astigmatism X | $\rho^2 \cos(2\theta)$ |
+| 6 | 2, -2 | Primary Astigmatism Y | $\rho^2 \sin(2\theta)$ |
+| 7 | 3, 1 | Primary Coma X | $(3\rho^3 - 2\rho) \cos(\theta)$ |
+| 8 | 3, -1 | Primary Coma Y | $(3\rho^3 - 2\rho) \sin(\theta)$ |
+| 9 | 4, 0 | Primary Spherical | $6\rho^4 - 6\rho^2 + 1$ |
+| 10 | 3, 3 | Primary Trefoil X | $\rho^3 \cos(3\theta)$ |
+| 11 | 3, -3 | Primary Trefoil Y | $\rho^3 \sin(3\theta)$ |
+| 12 | 4, 2 | Secondary Astigmatism X | $(4\rho^4 - 3\rho^2) \cos(2\theta)$ |
+| 13 | 4, -2 | Secondary Astigmatism Y | $(4\rho^4 - 3\rho^2) \sin(2\theta)$ |
+| 14 | 5, 1 | Secondary Coma X | $(10\rho^5 - 12\rho^3 + 3\rho) \cos(\theta)$ |
+| 15 | 5, -1 | Secondary Coma Y | $(10\rho^5 - 12\rho^3 + 3\rho) \sin(\theta)$ |
+| 16 | 6, 0 | Secondary Spherical | $20\rho^6 - 30\rho^4 + 12\rho^2 - 1$ |
 
 ### Simulation Modes
 - **Run Full Simulation**: Computes the through-focus calculations, providing heatmaps and contrast curves.
