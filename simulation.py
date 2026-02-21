@@ -15,10 +15,10 @@ def generate_mask(Nx, Ny, pixel_size, line_width_nm, orientation='V'):
     if lw_p == 0:
         lw_p = 1
         
-    # The pattern consists of 5 lines (index -2, -1, 0, 1, 2)
+    # The pattern consists of 13 lines (index -6 to 6)
     # Pitch = 2 * lw_p
     if orientation == 'V':
-        for i in range(-2, 3):
+        for i in range(-6, 7):
             cx = center_x + i * 2 * lw_p
             start = cx - lw_p // 2
             end = start + lw_p
@@ -27,7 +27,7 @@ def generate_mask(Nx, Ny, pixel_size, line_width_nm, orientation='V'):
             end = min(Nx, end)
             mask[:, start:end] = 0.0
     else:  # Horizontal
-        for i in range(-2, 3):
+        for i in range(-6, 7):
             cy = center_y + i * 2 * lw_p
             start = cy - lw_p // 2
             end = start + lw_p
