@@ -14,6 +14,36 @@ If you are curious about exposure devices, optics, or computational lithography,
 - **Visualizations**: View 1D intensity profiles, 2D aerial images, through-focus contrast curves, and through-focus intensity heatmaps.
 - **Data Export**: Easily export the resulting 1D profiles, contrast curves, and heatmaps to CSV format.
 
+## Principle of Partial Coherence Imaging
+
+### Abbe's Formulation
+The main simulation engine implements Abbe's theorem by modeling the illumination as an incoherent sum of coherent point sources. The aerial image intensity $I(x,y)$ is computed by integrating the mutually independent coherent images formed by each point source $(s_x, s_y)$ in the continuous illumination pupil limit (e.g., standard disk $\sigma$):
+
+$$ I(x,y) = \int \int_{\text{source}} \left| E_{\text{img}}(x, y ; s_x, s_y) \right|^2 ds_x ds_y $$
+
+For a single given source $(s_x, s_y)$, the incident wave plane tilts across the mask. The mask's diffracted spectrum passes through the objective pupil $P(f_x, f_y)$ to form the coherent image $E_{\text{img}}$:
+
+$$ E_{\text{img}}(x, y; s_x, s_y) = \mathcal{F}^{-1} \left\{ \mathcal{F} \Big\{ M(x, y) \cdot e^{i 2\pi (s_x x + s_y y)} \Big\} \cdot P(f_x, f_y) \right\} $$
+
+where:
+- $M(x, y)$ is the complex transmission function of the photomask.
+- $\mathcal{F}$ and $\mathcal{F}^{-1}$ represent the Spatial 2-Dimensional Fourier and Inverse Fourier Transforms respectively.
+
+### Pupil Function & Aberrations
+
+The generalized pupil function is described by the numerical aperture cutoff $\rho \le 1$ and total phase error $\Phi_{\text{total}}$, where $\rho = \frac{\sqrt{f_x^2 + f_y^2}}{\text{NA} / \lambda}$:
+
+$$ P(\rho, \theta) = \Pi(\rho) \cdot \exp( i \Phi_{\text{total}} ) $$
+
+$\Phi_{\text{total}}$ consists of modeled **Wavefront Aberrations** and the exact scalar **Defocus** phase shift. 
+Aberrations are injected as a weighted sum of Fringe Zernike polynomials $Z_j(\rho, \theta)$ with user-defined coefficients $c_j$ given in wave variants ($2\pi$ radians):
+
+$$ \Phi_{\text{aberration}}(\rho, \theta) = 2\pi \sum_{j} c_j Z_j(\rho, \theta) $$
+
+Defocus ($z$) propagation natively utilizes the scalar diffraction plane-wave propagation phase. While usually approximated parabolically in low NA, to avoid inaccuracies at high NA, the formula evaluated is the rigorous form:
+
+$$ \Phi_{\text{defocus}}(f_x, f_y; z) = \frac{2\pi}{\lambda} z \sqrt{1 - (\lambda f_x)^2 - (\lambda f_y)^2} $$
+
 ## Requirements
 
 The application requires Python 3 and the following dependencies:
