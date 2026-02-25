@@ -39,12 +39,14 @@ def generate_mask(Nx, Ny, pixel_size, line_width_nm, num_lines=5, orientation='V
             
     return mask
 
-def get_source_points(NA, sigma, lambda_nm, num_points=100):
+def get_source_points(NA, sigma, lambda_nm, num_points=100, ls_type='Top-hat', sigma_g=1.0):
     """
-    Generate a uniform grid of source points (fx, fy) within the illumination pupil.
+    Generate a grid of source points (fx, fy) and their weights within the illumination pupil.
+    ls_type: 'Top-hat' or 'Gaussian'
+    sigma_g: Gaussian Sigma parameter (1/σ)
     """
     if sigma == 0:
-        return np.array([[0.0, 0.0]])
+        return np.array([[0.0, 0.0]]), np.array([1.0])
         
     Rs = sigma * NA / lambda_nm
     # Calculate grid size to roughly achieve num_points inside the circle
@@ -52,16 +54,26 @@ def get_source_points(NA, sigma, lambda_nm, num_points=100):
     if N < 2: N = 2
     
     s_1d = np.linspace(-Rs, Rs, N)
-    sx, sy = np.meshgrid(s_1d, s_1d)
+    sx_grid, sy_grid = np.meshgrid(s_1d, s_1d)
     
     # Keep points inside the circle
-    valid = (sx**2 + sy**2) <= Rs**2
-    sx = sx[valid]
-    sy = sy[valid]
+    r_sq = sx_grid**2 + sy_grid**2
+    valid = r_sq <= Rs**2
+    sx = sx_grid[valid]
+    sy = sy_grid[valid]
+    r_sq_valid = r_sq[valid]
     
-    return np.column_stack((sx, sy))
+    if ls_type == 'Gaussian':
+        # W(r) = exp(-2 * (r/Rs)^2 * sigma_g^2)
+        # Note: at r=Rs, weight is exp(-2 * sigma_g^2)
+        weights = np.exp(-2 * (r_sq_valid / Rs**2) * (sigma_g**2))
+    else:
+        # Top-hat: uniform weights
+        weights = np.ones(len(sx))
+        
+    return np.column_stack((sx, sy)), weights
 
-def simulate_image(mask, NA, sigma, lambda_nm, focus_nm, zernike_coeffs, pixel_size_nm, source_points=None):
+def simulate_image(mask, NA, sigma, lambda_nm, focus_nm, zernike_coeffs, pixel_size_nm, source_points=None, weights=None):
     """
     Simulate the aerial image using Abbe's method.
     Returns the 2D intensity profile.
@@ -85,30 +97,24 @@ def simulate_image(mask, NA, sigma, lambda_nm, focus_nm, zernike_coeffs, pixel_s
     pupil_support = (rho <= 1.0)
     
     # Zernike Aberrations
-    # Coefficient array may omit piston, so pass directly to generator
     W_zernike = zernike.generate_aberration_phase(zernike_coeffs, rho, theta)
     
     # Defocus Phase
-    # Exact scalar propagation phase: kz = 2pi/lambda * sqrt(1 - (lambda*fx)^2 - (lambda*fy)^2)
-    # For Focus shift z, phase change is kz * z.
-    # We take the real part to zero out evanescent waves.
     sq = 1.0 - (lambda_nm * FX)**2 - (lambda_nm * FY)**2 - 0j
     kz = (2 * np.pi / lambda_nm) * np.sqrt(sq).real
     defocus_phase = kz * focus_nm
     
     # Total Pupil
-    # P = P0 * exp(i * (2pi * W_zernike)) * exp(i * defocus_phase)
-    # Note: W_zernike is expected in units of waves, so we multiply by 2pi.
     phase_total = 2 * np.pi * W_zernike + defocus_phase
     P = pupil_support * np.exp(1j * phase_total)
     
     # Illumination Source
-    if source_points is None:
-        source_points = get_source_points(NA, sigma, lambda_nm, 100)
+    if source_points is None or weights is None:
+        source_points, weights = get_source_points(NA, sigma, lambda_nm, 100)
     
     intensity = np.zeros((Ny, Nx), dtype=float)
     
-    for sx, sy in source_points:
+    for (sx, sy), w in zip(source_points, weights):
         # Incident wave tilts the mask field
         mask_tilted = mask * np.exp(1j * 2 * np.pi * (sx * X + sy * Y))
         
@@ -121,10 +127,10 @@ def simulate_image(mask, NA, sigma, lambda_nm, focus_nm, zernike_coeffs, pixel_s
         # Inverse FFT to get image field
         E_img = np.fft.ifft2(E_img_f)
         
-        # Add to total intensity (incoherent sum of coherent images)
-        intensity += np.abs(E_img)**2
+        # Add to total intensity (weighted incoherent sum)
+        intensity += w * np.abs(E_img)**2
         
-    return intensity / len(source_points)
+    return intensity / np.sum(weights)
 
 def calculate_contrast(image, line_width_nm, pixel_size_nm, orientation='V'):
     """
@@ -167,29 +173,29 @@ def calculate_contrast(image, line_width_nm, pixel_size_nm, orientation='V'):
         return 0.0
     return (I_max - I_min) / (I_max + I_min)
 
-def sweep_focus(mask, NA, sigma, lambda_nm, focus_list, zernike_coeffs, pixel_size_nm, orientation='V', num_source=100):
+def sweep_focus(mask, NA, sigma, lambda_nm, focus_list, zernike_coeffs, pixel_size_nm, orientation='V', num_source=100, ls_type='Top-hat', sigma_g=1.0):
     """
     Sweep through a list of focus values and return the contrast at each focus.
     """
-    source_points = get_source_points(NA, sigma, lambda_nm, num_points=num_source)
+    source_points, weights = get_source_points(NA, sigma, lambda_nm, num_points=num_source, ls_type=ls_type, sigma_g=sigma_g)
     contrasts = []
     
     for f in focus_list:
-        img = simulate_image(mask, NA, sigma, lambda_nm, f, zernike_coeffs, pixel_size_nm, source_points)
+        img = simulate_image(mask, NA, sigma, lambda_nm, f, zernike_coeffs, pixel_size_nm, source_points, weights)
         c = calculate_contrast(img, line_width_nm=0, pixel_size_nm=pixel_size_nm, orientation=orientation)
         # Note: actually we need to pass line_width_nm. Let's fix loop to accept it as param.
     return contrasts
 
-def run_through_focus(line_width_nm, NA, sigma, lambda_nm, focus_list, zernike_coeffs, num_lines=5, orientation='V', Nx=512, Ny=512, pixel_size_nm=2.0, num_source=100):
+def run_through_focus(line_width_nm, NA, sigma, lambda_nm, focus_list, zernike_coeffs, num_lines=5, orientation='V', Nx=512, Ny=512, pixel_size_nm=2.0, num_source=100, ls_type='Top-hat', sigma_g=1.0):
     mask = generate_mask(Nx, Ny, pixel_size_nm, line_width_nm, num_lines, orientation)
-    source_points = get_source_points(NA, sigma, lambda_nm, num_points=num_source)
+    source_points, weights = get_source_points(NA, sigma, lambda_nm, num_points=num_source, ls_type=ls_type, sigma_g=sigma_g)
     
     contrasts = []
     profiles = []
     cx, cy = Nx // 2, Ny // 2
     
     for f in focus_list:
-        img = simulate_image(mask, NA, sigma, lambda_nm, f, zernike_coeffs, pixel_size_nm, source_points)
+        img = simulate_image(mask, NA, sigma, lambda_nm, f, zernike_coeffs, pixel_size_nm, source_points, weights)
         c = calculate_contrast(img, line_width_nm, pixel_size_nm, orientation)
         contrasts.append(c)
         if orientation == 'V':
@@ -209,13 +215,14 @@ if __name__ == "__main__":
     
     print("Generating Mask")
     m = generate_mask(Nx, Ny, pixel_size, lw, 5, 'V')
-    print("Simulating Image")
-    img = simulate_image(m, NA=1.35, sigma=0.8, lambda_nm=193.0, focus_nm=0.0, zernike_coeffs=z_coeffs, pixel_size_nm=pixel_size)
+    print("Simulating Image (Gaussian)")
+    pts, wts = get_source_points(NA=1.35, sigma=0.8, lambda_nm=193.0, num_points=100, ls_type='Gaussian', sigma_g=1.0)
+    img = simulate_image(m, NA=1.35, sigma=0.8, lambda_nm=193.0, focus_nm=0.0, zernike_coeffs=z_coeffs, pixel_size_nm=pixel_size, source_points=pts, weights=wts)
     c = calculate_contrast(img, lw, pixel_size, 'V')
     print(f"Contrast at focus 0: {c:.4f}")
     
     foc_list = np.linspace(-100, 100, 5)
-    print("Running Through-Focus")
-    clist, plist = run_through_focus(lw, 1.35, 0.8, 193.0, foc_list, z_coeffs, 5, 'V', Nx, Ny, pixel_size)
+    print("Running Through-Focus (Top-hat)")
+    clist, plist = run_through_focus(lw, 1.35, 0.8, 193.0, foc_list, z_coeffs, 5, 'V', Nx, Ny, pixel_size, ls_type='Top-hat')
     for f, c in zip(foc_list, clist):
         print(f"Focus {f}nm: Contrast {c:.4f}")

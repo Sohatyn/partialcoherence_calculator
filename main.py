@@ -64,39 +64,51 @@ class PartialCoherenceApp(tk.Tk):
         ttk.Label(param_frame, text="Illumination σ (0-1):").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
         self.var_sig = tk.StringVar(value="0.8")
         ttk.Entry(param_frame, textvariable=self.var_sig, width=10).grid(row=2, column=1, padx=5, pady=2)
-        ttk.Label(param_frame, text="Focus (um):").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Label(param_frame, text="LS Type:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        ls_frame = ttk.Frame(param_frame)
+        ls_frame.grid(row=3, column=1, sticky=tk.W)
+        self.var_ls_type = tk.StringVar(value="Top-hat")
+        ttk.Radiobutton(ls_frame, text="Top-hat", variable=self.var_ls_type, value="Top-hat").pack(side=tk.LEFT)
+        ttk.Radiobutton(ls_frame, text="Gaussian", variable=self.var_ls_type, value="Gaussian").pack(side=tk.LEFT)
+
+        ttk.Label(param_frame, text="Gaussian Sigma (1/σ):").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
+        self.var_ls_g = tk.StringVar(value="1.0")
+        ttk.Entry(param_frame, textvariable=self.var_ls_g, width=10).grid(row=4, column=1, padx=5, pady=2)
+
+        ttk.Label(param_frame, text="Focus (um):").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
         self.var_foc = tk.StringVar(value="0.0")
-        ttk.Entry(param_frame, textvariable=self.var_foc, width=10).grid(row=3, column=1, padx=5, pady=2)
+        ttk.Entry(param_frame, textvariable=self.var_foc, width=10).grid(row=5, column=1, padx=5, pady=2)
         
-        ttk.Label(param_frame, text="Focus Sweep ±(um):").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(param_frame, text="Focus Sweep ±(um):").grid(row=6, column=0, sticky=tk.W, padx=5, pady=2)
         span_frame = ttk.Frame(param_frame)
-        span_frame.grid(row=4, column=1, sticky=tk.W)
+        span_frame.grid(row=6, column=1, sticky=tk.W)
         self.var_foc_span = tk.StringVar(value="5.0")
         ttk.Entry(span_frame, textvariable=self.var_foc_span, width=5).pack(side=tk.LEFT, padx=(0, 2))
         ttk.Label(span_frame, text="Step:").pack(side=tk.LEFT)
         self.var_foc_step = tk.StringVar(value="0.5")
         ttk.Entry(span_frame, textvariable=self.var_foc_step, width=5).pack(side=tk.LEFT, padx=(2, 0))
 
-        ttk.Label(param_frame, text="L&S Width (nm):").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(param_frame, text="L&S Width (nm):").grid(row=7, column=0, sticky=tk.W, padx=5, pady=2)
         lw_frame = ttk.Frame(param_frame)
-        lw_frame.grid(row=5, column=1, sticky=tk.W, padx=5, pady=2)
+        lw_frame.grid(row=7, column=1, sticky=tk.W, padx=5, pady=2)
         self.var_w = tk.StringVar(value="1500.0")
         ttk.Entry(lw_frame, textvariable=self.var_w, width=7).pack(side=tk.LEFT, padx=(0, 2))
         ttk.Label(lw_frame, text="Lines:").pack(side=tk.LEFT)
         self.var_lines = tk.StringVar(value="5")
         ttk.Entry(lw_frame, textvariable=self.var_lines, width=4).pack(side=tk.LEFT, padx=(2, 0))
         
-        ttk.Label(param_frame, text="Orientation:").grid(row=6, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(param_frame, text="Orientation:").grid(row=8, column=0, sticky=tk.W, padx=5, pady=2)
         ori_frame = ttk.Frame(param_frame)
-        ori_frame.grid(row=6, column=1, sticky=tk.W)
+        ori_frame.grid(row=8, column=1, sticky=tk.W)
         self.var_ori = tk.StringVar(value="V")
         ttk.Radiobutton(ori_frame, text="Vertical", variable=self.var_ori, value="V").pack(side=tk.LEFT)
         ttk.Radiobutton(ori_frame, text="Horizontal", variable=self.var_ori, value="H").pack(side=tk.LEFT)
         ttk.Radiobutton(ori_frame, text="Both", variable=self.var_ori, value="Both").pack(side=tk.LEFT)
         
-        ttk.Label(param_frame, text="Precision:").grid(row=7, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(param_frame, text="Precision:").grid(row=9, column=0, sticky=tk.W, padx=5, pady=2)
         prec_frame = ttk.Frame(param_frame)
-        prec_frame.grid(row=7, column=1, sticky=tk.W)
+        prec_frame.grid(row=9, column=1, sticky=tk.W)
         self.var_prec = tk.StringVar(value="Fast")
         ttk.Radiobutton(prec_frame, text="Fast (Rough)", variable=self.var_prec, value="Fast").pack(side=tk.LEFT)
         ttk.Radiobutton(prec_frame, text="High (Slow)", variable=self.var_prec, value="High").pack(side=tk.LEFT)
@@ -178,8 +190,10 @@ class PartialCoherenceApp(tk.Tk):
             num_lines = int(self.var_lines.get())
             ori = self.var_ori.get()
             prec = self.var_prec.get()
+            ls_type = self.var_ls_type.get()
+            sigma_g = float(self.var_ls_g.get())
             z_coeffs = np.array([float(v.get()) for v in self.zernike_entries])
-            return wav, na, sig, foc_um, foc_span, foc_step, w, num_lines, ori, prec, z_coeffs
+            return wav, na, sig, foc_um, foc_span, foc_step, w, num_lines, ori, prec, z_coeffs, ls_type, sigma_g
         except ValueError:
             messagebox.showerror("Input Error", "Please ensure all inputs are valid numbers.")
             return None
@@ -187,7 +201,7 @@ class PartialCoherenceApp(tk.Tk):
     def run_simulation(self, full=True):
         params = self._get_inputs()
         if not params: return
-        wav, na, sig, foc_um, foc_span, foc_step, w, num_lines, ori, prec, z_coeffs = params
+        wav, na, sig, foc_um, foc_span, foc_step, w, num_lines, ori, prec, z_coeffs, ls_type, sigma_g = params
         
         mode_text = "full simulation" if full else "2D & Profile calculation"
         self.status_var.set(f"Running {mode_text}... please wait.")
@@ -209,12 +223,12 @@ class PartialCoherenceApp(tk.Tk):
             pixel_size = target_field_size / Nx
             
             foc_nm = foc_um * 1000.0
-            src_single = simulation.get_source_points(na, sig, wav, num_points=num_points_single)
+            src_single, weights_single = simulation.get_source_points(na, sig, wav, num_points=num_points_single, ls_type=ls_type, sigma_g=sigma_g)
             
             # Helper to run single orientation
             def run_single_orientation(o):
                 mask = simulation.generate_mask(Nx, Ny, pixel_size, w, num_lines, o)
-                img = simulation.simulate_image(mask, na, sig, wav, foc_nm, z_coeffs, pixel_size, source_points=src_single)
+                img = simulation.simulate_image(mask, na, sig, wav, foc_nm, z_coeffs, pixel_size, source_points=src_single, weights=weights_single)
                 c = simulation.calculate_contrast(img, w, pixel_size, o)
                 
                 cx, cy = Nx//2, Ny//2
@@ -261,10 +275,10 @@ class PartialCoherenceApp(tk.Tk):
                 
                 if ori == "Both":
                     c_list_v, p_list_v = simulation.run_through_focus(
-                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "V", Nx, Ny, pixel_size, num_source=num_points_sweep
+                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "V", Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
                     )
                     c_list_h_res, p_list_h_res = simulation.run_through_focus(
-                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "H", Nx, Ny, pixel_size, num_source=num_points_sweep
+                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "H", Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
                     )
                     c_list = c_list_v
                     p_list = p_list_v
@@ -272,7 +286,7 @@ class PartialCoherenceApp(tk.Tk):
                     p_list_h = p_list_h_res
                 else:
                     c_list, p_list = simulation.run_through_focus(
-                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, ori, Nx, Ny, pixel_size, num_source=num_points_sweep
+                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, ori, Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
                     )
                 
                 self.current_foc_list = foc_um_list
