@@ -89,26 +89,64 @@ class PartialCoherenceApp(tk.Tk):
         self.var_foc_step = tk.StringVar(value="0.5")
         ttk.Entry(span_frame, textvariable=self.var_foc_step, width=5).pack(side=tk.LEFT, padx=(2, 0))
 
-        ttk.Label(param_frame, text="L&S Width (nm):").grid(row=7, column=0, sticky=tk.W, padx=5, pady=2)
+        # Row 7: Equal L&S
+        ttk.Label(param_frame, text="Equal L/S (nm):").grid(row=7, column=0, sticky=tk.W, padx=5, pady=2)
         lw_frame = ttk.Frame(param_frame)
         lw_frame.grid(row=7, column=1, sticky=tk.W, padx=5, pady=2)
         self.var_w = tk.StringVar(value="1500.0")
-        ttk.Entry(lw_frame, textvariable=self.var_w, width=7).pack(side=tk.LEFT, padx=(0, 2))
+        self.ent_w = ttk.Entry(lw_frame, textvariable=self.var_w, width=7)
+        self.ent_w.pack(side=tk.LEFT, padx=(0, 2))
         ttk.Label(lw_frame, text="Lines:").pack(side=tk.LEFT)
         self.var_lines = tk.StringVar(value="5")
-        ttk.Entry(lw_frame, textvariable=self.var_lines, width=4).pack(side=tk.LEFT, padx=(2, 0))
+        self.ent_lines = ttk.Entry(lw_frame, textvariable=self.var_lines, width=4)
+        self.ent_lines.pack(side=tk.LEFT, padx=(2, 0))
         
-        ttk.Label(param_frame, text="Orientation:").grid(row=8, column=0, sticky=tk.W, padx=5, pady=2)
+        # Row 8: Asym L/S
+        self.var_asym = tk.BooleanVar(value=False)
+        ttk.Checkbutton(param_frame, text="Asym L/S", variable=self.var_asym, command=self._toggle_asym).grid(row=8, column=0, sticky=tk.W, padx=5, pady=2)
+        
+        asym_frame = ttk.Frame(param_frame)
+        asym_frame.grid(row=8, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        ttk.Label(asym_frame, text="L:").pack(side=tk.LEFT)
+        self.var_asym_l = tk.StringVar(value="1000.0")
+        self.ent_asym_l = ttk.Entry(asym_frame, textvariable=self.var_asym_l, width=5, state=tk.DISABLED)
+        self.ent_asym_l.pack(side=tk.LEFT, padx=(0, 2))
+        
+        ttk.Label(asym_frame, text="S:").pack(side=tk.LEFT)
+        self.var_asym_s = tk.StringVar(value="3000.0")
+        self.ent_asym_s = ttk.Entry(asym_frame, textvariable=self.var_asym_s, width=5, state=tk.DISABLED)
+        self.ent_asym_s.pack(side=tk.LEFT, padx=(0, 2))
+        
+        self.pitch_lbl = ttk.Label(asym_frame, text="", foreground="darkgreen")
+        self.pitch_lbl.pack(side=tk.LEFT, padx=(2, 5))
+        
+        ttk.Label(asym_frame, text="Lines:").pack(side=tk.LEFT)
+        self.var_asym_lines = tk.StringVar(value="5")
+        self.ent_asym_lines = ttk.Entry(asym_frame, textvariable=self.var_asym_lines, width=3, state=tk.DISABLED)
+        self.ent_asym_lines.pack(side=tk.LEFT)
+        
+        # Trace updates for line/space width to update pitch
+        self.var_asym_l.trace_add("write", self._update_pitch)
+        self.var_asym_s.trace_add("write", self._update_pitch)
+        self.var_asym.trace_add("write", self._update_pitch)
+        
+        # Row 9: Invert Pattern
+        self.var_invert = tk.BooleanVar(value=False)
+        ttk.Checkbutton(param_frame, text="Invert Pattern (Bright lines)", variable=self.var_invert).grid(row=9, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
+        # Row 10: Orientation
+        ttk.Label(param_frame, text="Orientation:").grid(row=10, column=0, sticky=tk.W, padx=5, pady=2)
         ori_frame = ttk.Frame(param_frame)
-        ori_frame.grid(row=8, column=1, sticky=tk.W)
+        ori_frame.grid(row=10, column=1, sticky=tk.W)
         self.var_ori = tk.StringVar(value="V")
         ttk.Radiobutton(ori_frame, text="Vertical", variable=self.var_ori, value="V").pack(side=tk.LEFT)
         ttk.Radiobutton(ori_frame, text="Horizontal", variable=self.var_ori, value="H").pack(side=tk.LEFT)
         ttk.Radiobutton(ori_frame, text="Both", variable=self.var_ori, value="Both").pack(side=tk.LEFT)
         
-        ttk.Label(param_frame, text="Precision:").grid(row=9, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(param_frame, text="Precision:").grid(row=11, column=0, sticky=tk.W, padx=5, pady=2)
         prec_frame = ttk.Frame(param_frame)
-        prec_frame.grid(row=9, column=1, sticky=tk.W)
+        prec_frame.grid(row=11, column=1, sticky=tk.W)
         self.var_prec = tk.StringVar(value="Fast")
         ttk.Radiobutton(prec_frame, text="Fast (Rough)", variable=self.var_prec, value="Fast").pack(side=tk.LEFT)
         ttk.Radiobutton(prec_frame, text="High (Slow)", variable=self.var_prec, value="High").pack(side=tk.LEFT)
@@ -177,6 +215,129 @@ class PartialCoherenceApp(tk.Tk):
         
         self.canvas_plot = FigureCanvasTkAgg(self.fig, master=right_frame)
         self.canvas_plot.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def _toggle_asym(self):
+        if self.var_asym.get():
+            self.ent_asym_l.config(state=tk.NORMAL)
+            self.ent_asym_s.config(state=tk.NORMAL)
+            self.ent_asym_lines.config(state=tk.NORMAL)
+            self.ent_w.config(state=tk.DISABLED)
+            self.ent_lines.config(state=tk.DISABLED)
+        else:
+            self.ent_asym_l.config(state=tk.DISABLED)
+            self.ent_asym_s.config(state=tk.DISABLED)
+            self.ent_asym_lines.config(state=tk.DISABLED)
+            self.ent_w.config(state=tk.NORMAL)
+            self.ent_lines.config(state=tk.NORMAL)
+        self._update_pitch()
+
+    def _update_pitch(self, *args):
+        if not self.var_asym.get():
+            self.pitch_lbl.config(text="")
+            return
+        try:
+            l = float(self.var_asym_l.get())
+            s = float(self.var_asym_s.get())
+            self.pitch_lbl.config(text=f"Pitch: {l+s:.1f}")
+        except ValueError:
+            self.pitch_lbl.config(text="Pitch: Error")
+        
+    def generate_asym_mask(self, Nx, Ny, pixel_size, line_width_nm, space_width_nm, num_lines=5, orientation='V', invert=False):
+        """
+        Extended masking logic embedded within main.py to avoid altering simulation.py
+        """
+        mask = np.ones((Ny, Nx), dtype=float)
+        center_x = Nx // 2
+        center_y = Ny // 2
+        
+        lw_p = int(round(line_width_nm / pixel_size))
+        sw_p = int(round(space_width_nm / pixel_size))
+        if lw_p == 0: lw_p = 1
+        if sw_p == 0: sw_p = 1
+            
+        start_idx = -(num_lines // 2)
+        end_idx = start_idx + num_lines
+        pitch_p = lw_p + sw_p
+        
+        if orientation == 'V':
+            for i in range(start_idx, end_idx):
+                cx = center_x + i * pitch_p
+                start = cx - lw_p // 2
+                end = start + lw_p
+                start = max(0, start)
+                end = min(Nx, end)
+                mask[:, start:end] = 0.0
+        else:
+            for i in range(start_idx, end_idx):
+                cy = center_y + i * pitch_p
+                start = cy - lw_p // 2
+                end = start + lw_p
+                start = max(0, start)
+                end = min(Ny, end)
+                mask[start:end, :] = 0.0
+                
+        if invert:
+            mask = 1.0 - mask
+            
+        return mask
+
+    def calculate_asym_contrast(self, image, line_width_nm, space_width_nm, pixel_size_nm=2.0, orientation='V'):
+        Ny, Nx = image.shape
+        cy, cx = Ny // 2, Nx // 2
+        
+        lw_p = int(round(line_width_nm / pixel_size_nm))
+        sw_p = int(round(space_width_nm / pixel_size_nm))
+        if lw_p == 0: lw_p = 1
+        if sw_p == 0: sw_p = 1
+        
+        if orientation == 'V':
+            profile = image[cy, :]
+            start_c = max(0, cx - lw_p//2)
+            end_c = min(Nx, cx + lw_p//2 + 1)
+            center_region = profile[start_c:end_c]
+            val_center = np.min(center_region) if len(center_region) > 0 else profile[cx]
+            
+            start_s = max(0, cx + lw_p//2)
+            end_s = min(Nx, cx + lw_p//2 + sw_p + 1)
+            space_region = profile[start_s:end_s]
+            val_space = np.max(space_region) if len(space_region) > 0 else profile[min(Nx-1, cx + lw_p//2 + sw_p//2)]
+        else:
+            profile = image[:, cx]
+            start_c = max(0, cy - lw_p//2)
+            end_c = min(Ny, cy + lw_p//2 + 1)
+            center_region = profile[start_c:end_c]
+            val_center = np.min(center_region) if len(center_region) > 0 else profile[cy]
+            
+            start_s = max(0, cy + lw_p//2)
+            end_s = min(Ny, cy + lw_p//2 + sw_p + 1)
+            space_region = profile[start_s:end_s]
+            val_space = np.max(space_region) if len(space_region) > 0 else profile[min(Ny-1, cy + lw_p//2 + sw_p//2)]
+            
+        I_max = max(val_center, val_space)
+        I_min = min(val_center, val_space)
+        
+        if I_max + I_min == 0:
+            return 0.0
+        return (I_max - I_min) / (I_max + I_min)
+
+    def run_extended_through_focus(self, line_width_nm, space_width_nm, NA, sigma, lambda_nm, focus_list, zernike_coeffs, num_lines=5, orientation='V', Nx=512, Ny=512, pixel_size_nm=2.0, num_source=100, ls_type='Top-hat', sigma_g=1.0, invert=False):
+        mask = self.generate_asym_mask(Nx, Ny, pixel_size_nm, line_width_nm, space_width_nm, num_lines, orientation, invert)
+        source_points, weights = simulation.get_source_points(NA, sigma, lambda_nm, num_points=num_source, ls_type=ls_type, sigma_g=sigma_g)
+        
+        contrasts = []
+        profiles = []
+        cx, cy = Nx // 2, Ny // 2
+        
+        for f in focus_list:
+            img = simulation.simulate_image(mask, NA, sigma, lambda_nm, f, zernike_coeffs, pixel_size_nm, source_points, weights)
+            c = self.calculate_asym_contrast(img, line_width_nm, space_width_nm, pixel_size_nm, orientation)
+            contrasts.append(c)
+            if orientation == 'V':
+                profiles.append(img[cy, :])
+            else:
+                profiles.append(img[:, cx])
+            
+        return contrasts, np.array(profiles)
         
     def _get_inputs(self):
         try:
@@ -186,14 +347,30 @@ class PartialCoherenceApp(tk.Tk):
             foc_um = float(self.var_foc.get())
             foc_span = float(self.var_foc_span.get())
             foc_step = float(self.var_foc_step.get())
-            w = float(self.var_w.get())
-            num_lines = int(self.var_lines.get())
+            
+            use_asym = hasattr(self, 'var_asym') and self.var_asym.get()
+            
+            if use_asym:
+                w = float(self.var_asym_l.get())
+                sw = float(self.var_asym_s.get())
+                num_lines = int(self.var_asym_lines.get())
+            else:
+                w = float(self.var_w.get())
+                sw = w
+                num_lines = int(self.var_lines.get())
+                
+            invert = getattr(self, 'var_invert', tk.BooleanVar(value=False)).get()
+            
             ori = self.var_ori.get()
             prec = self.var_prec.get()
             ls_type = self.var_ls_type.get()
             sigma_g = float(self.var_ls_g.get())
             z_coeffs = np.array([float(v.get()) for v in self.zernike_entries])
-            return wav, na, sig, foc_um, foc_span, foc_step, w, num_lines, ori, prec, z_coeffs, ls_type, sigma_g
+            
+            # Additional flag indicating if extended logic is required
+            use_extended = use_asym or invert
+            
+            return wav, na, sig, foc_um, foc_span, foc_step, w, sw, invert, use_extended, num_lines, ori, prec, z_coeffs, ls_type, sigma_g
         except ValueError:
             messagebox.showerror("Input Error", "Please ensure all inputs are valid numbers.")
             return None
@@ -201,7 +378,7 @@ class PartialCoherenceApp(tk.Tk):
     def run_simulation(self, full=True):
         params = self._get_inputs()
         if not params: return
-        wav, na, sig, foc_um, foc_span, foc_step, w, num_lines, ori, prec, z_coeffs, ls_type, sigma_g = params
+        wav, na, sig, foc_um, foc_span, foc_step, w, sw, invert, use_extended, num_lines, ori, prec, z_coeffs, ls_type, sigma_g = params
         
         mode_text = "full simulation" if full else "2D & Profile calculation"
         self.status_var.set(f"Running {mode_text}... please wait.")
@@ -217,8 +394,8 @@ class PartialCoherenceApp(tk.Tk):
             
         try:
             # Resolution logic
-            # Scale target_field_size proportionally with num_lines so it always looks like 5 lines
-            target_field_size = 4.0 * num_lines * w
+            pitch = w + sw if use_extended else w * 2.0
+            target_field_size = 2.0 * num_lines * pitch if use_extended else 4.0 * num_lines * w
             Nx, Ny = 512, 512
             pixel_size = target_field_size / Nx
             
@@ -227,9 +404,15 @@ class PartialCoherenceApp(tk.Tk):
             
             # Helper to run single orientation
             def run_single_orientation(o):
-                mask = simulation.generate_mask(Nx, Ny, pixel_size, w, num_lines, o)
-                img = simulation.simulate_image(mask, na, sig, wav, foc_nm, z_coeffs, pixel_size, source_points=src_single, weights=weights_single)
-                c = simulation.calculate_contrast(img, w, pixel_size, o)
+                if use_extended:
+                    mask = self.generate_asym_mask(Nx, Ny, pixel_size, w, sw, num_lines, o, invert)
+                    img = simulation.simulate_image(mask, na, sig, wav, foc_nm, z_coeffs, pixel_size, source_points=src_single, weights=weights_single)
+                    c = self.calculate_asym_contrast(img, w, sw, pixel_size, o)
+                else:
+                    # Pure original backend call
+                    mask = simulation.generate_mask(Nx, Ny, pixel_size, w, num_lines, o)
+                    img = simulation.simulate_image(mask, na, sig, wav, foc_nm, z_coeffs, pixel_size, source_points=src_single, weights=weights_single)
+                    c = simulation.calculate_contrast(img, w, pixel_size, o)
                 
                 cx, cy = Nx//2, Ny//2
                 if o == 'V':
@@ -274,39 +457,53 @@ class PartialCoherenceApp(tk.Tk):
                 foc_nm_list = foc_um_list * 1000.0
                 
                 if ori == "Both":
-                    c_list_v, p_list_v = simulation.run_through_focus(
-                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "V", Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
-                    )
-                    c_list_h_res, p_list_h_res = simulation.run_through_focus(
-                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "H", Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
-                    )
+                    if use_extended:
+                        c_list_v, p_list_v = self.run_extended_through_focus(
+                            w, sw, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "V", Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g, invert=invert
+                        )
+                        c_list_h_res, p_list_h_res = self.run_extended_through_focus(
+                            w, sw, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "H", Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g, invert=invert
+                        )
+                    else:
+                        c_list_v, p_list_v = simulation.run_through_focus(
+                            w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "V", Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
+                        )
+                        c_list_h_res, p_list_h_res = simulation.run_through_focus(
+                            w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, "H", Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
+                        )
                     c_list = c_list_v
                     p_list = p_list_v
                     c_list_h = c_list_h_res
                     p_list_h = p_list_h_res
                 else:
-                    c_list, p_list = simulation.run_through_focus(
-                        w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, ori, Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
-                    )
+                    if use_extended:
+                        c_list, p_list = self.run_extended_through_focus(
+                            w, sw, na, sig, wav, foc_nm_list, z_coeffs, num_lines, ori, Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g, invert=invert
+                        )
+                    else:
+                        c_list, p_list = simulation.run_through_focus(
+                            w, na, sig, wav, foc_nm_list, z_coeffs, num_lines, ori, Nx, Ny, pixel_size, num_source=num_points_sweep, ls_type=ls_type, sigma_g=sigma_g
+                        )
                 
                 self.current_foc_list = foc_um_list
                 self.current_c_list = c_list
                 self.current_p_list = p_list
             
             # Plot
-            self._update_plots(self.current_1d[0], self.current_1d[1], foc_um, self.current_contrast, foc_um_list, c_list, p_list, w, num_lines, ori, full, c_list_h, p_list_h)
+            self._update_plots(self.current_1d[0], self.current_1d[1], foc_um, self.current_contrast, foc_um_list, c_list, p_list, w, sw, use_extended, num_lines, ori, full, c_list_h, p_list_h)
             self.status_var.set("Simulation completed.")
             
         except Exception as e:
             messagebox.showerror("Simulation Error", str(e))
             self.status_var.set("Error occurred.")
             
-    def _update_plots(self, x, prof, f_user, c_user, f_list, c_list, p_list, w, num_lines, ori, full_update=True, c_list_h=None, p_list_h=None):
+    def _update_plots(self, x, prof, f_user, c_user, f_list, c_list, p_list, w, sw, use_extended, num_lines, ori, full_update=True, c_list_h=None, p_list_h=None):
         # Convert base units (nm) to (um) for plots 1 and 4
         x_um = x / 1000.0
         w_um = w / 1000.0
+        pitch_um = ((w + sw) / 1000.0) if use_extended else (w_um * 2.0)
         extent_um = [e / 1000.0 for e in self.current_extent]
-        limit_um = 1.8 * num_lines * w_um
+        limit_um = 0.9 * num_lines * pitch_um if use_extended else 1.8 * num_lines * w_um
         
         # 1. 1D Profile (Only shows Primary when Both, which is V)
         self.ax1.clear()
