@@ -7,8 +7,8 @@ If you are curious about exposure devices, optics, or computational lithography,
 ## Features
 
 - **Interactive UI**: A Tkinter-based GUI for real-time parameter configuration, with Matplotlib visualizations.
-- **Customizable Optical Parameters**: Adjust Wavelength ($\lambda$), Lens NA, and Illumination coherence ($\sigma$).
-- **Mask Definition**: Simulate Line and Space (L&S) patterns with adjustable width, number of lines, and orientation (Vertical, Horizontal, or Both).
+- **Customizable Optical Parameters**: Adjust Wavelength ($\lambda$), Lens NA, Illumination coherence ($\sigma$), and define source profiles (Top-hat or Gaussian).
+- **Mask Definition**: Simulate Line and Space (L&S) patterns with either equal or asymmetric line/space widths, adjustable number of lines, pattern inversion, and orientation (Vertical, Horizontal, or Both).
 - **Aberrations**: Full support for 36 standard Fringe Zernike Coefficients (in waves) for analyzing aberrations like Coma, Astigmatism, and Spherical.
 - **Through-Focus Sweep**: Simulate images through various focus steps to evaluate the depth of focus and contrast curves.
 - **Visualizations**: View 1D intensity profiles, 2D aerial images, through-focus contrast curves, and through-focus intensity heatmaps.
@@ -67,9 +67,14 @@ python main.py
 1. **Wavelength $\lambda$ (nm)**: Source illumination wavelength (e.g., 365.0 for i-line, 193.0 for ArF).
 2. **Lens NA**: Numerical Aperture of the objective lens.
 3. **Illumination $\sigma$**: Partial coherence factor of the illumination source (0 to 1).
-4. **Focus & Sweep**: Set the central focus position and perform a sweep over a defined range and step size.
-5. **L&S Width (nm)**: Width of the lines corresponding to your mask pattern.
-6. **Precision**: Choose between `Fast (Rough)` for quick explorations or `High (Slow)` for detailed, high-resolution rendering.
+4. **LS Type & Gaussian Sigma**: Select the light source profile: "Top-hat" (uniform) or "Gaussian". If Gaussian is selected, adjust the decay rate using the $1/\sigma$ parameter.
+5. **Focus & Sweep**: Set the central focus position and perform a sweep over a defined range and step size.
+6. **Mask Parameters**: 
+   - **Equal L/S**: Define the line width and number of lines.
+   - **Asymmetric L/S**: Enables defining different widths for lines (L) and spaces (S). Automatically calculates the pitch.
+   - **Invert Pattern**: Toggle to simulate bright lines on a dark background instead of dark lines.
+7. **Orientation**: Choose the pattern orientation: Vertical, Horizontal, or Both.
+8. **Precision**: Choose between `Fast (Rough)` for quick explorations or `High (Slow)` for detailed, high-resolution rendering.
 
 ### Zernike Coefficients
 Expand the bottom left section to input values (in waves) for up to 36 Fringe Zernike aberrations to see their impact on the aerial image and contrast. The simulator utilizes the standard 36 Fringe Zernike polynomials $Z_j(\rho, \theta)$, where $\rho$ is the normalized pupil radius and $\theta$ is the azimuthal angle.
